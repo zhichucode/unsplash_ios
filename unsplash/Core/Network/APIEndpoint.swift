@@ -15,15 +15,13 @@ enum APIEndpoint {
 
     var path: String {
         switch self {
-        // Photos
+            // Photos
         case .curatedPhotos:
-            return "/curated"
+                return "/curated"
         case .listPhotos:
-            return "/photos"
-        case .getPhoto(let id):
-            return "/photos/\(id)"
+                return "/photos"
         case .searchPhotos:
-            return "/search" // Note: Pexels uses /search not /search/photos
+                return "/search"
         }
     }
 
