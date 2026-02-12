@@ -33,7 +33,7 @@ struct PhotoGridCell: View {
                 .frame(height: 60)
 
                 // User info
-                HStack {
+                HStack(spacing: 2) {
                     // User avatar
                     AsyncImageView(
                         url: URL(string: photo.user.profileImage?.small ?? ""),
@@ -62,7 +62,7 @@ struct PhotoGridCell: View {
                     Spacer()
 
                     // Likes
-                    HStack(spacing: 4) {
+                    HStack(spacing: 2) {
                         Image(systemName: photo.likedByUser ? "heart.fill" : "heart")
                             .font(.caption)
                             .foregroundColor(photo.likedByUser ? .red : .white)
@@ -70,10 +70,7 @@ struct PhotoGridCell: View {
                             .font(.caption)
                             .foregroundColor(.white)
                     }
-                    .padding(.trailing, 8)
                 }
-                .padding(.horizontal, 8)
-                .padding(.bottom, 8)
             }
         }
         .background(Color(.systemGray6))
@@ -96,5 +93,4 @@ struct PhotoGridCell: View {
                 .aspectRatio(photo.aspectRatio, contentMode: .fit)
         }
     }
-    .padding()
 }
