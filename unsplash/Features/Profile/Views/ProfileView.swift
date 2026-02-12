@@ -2,55 +2,148 @@
 //  ProfileView.swift
 //  unsplash
 //
-//  User profile view
+//  User profile view with authentication
 //
 
 import SwiftUI
 
 struct ProfileView: View {
+    @StateObject private var authService = SupabaseAuthService()
+    @State private var showingAuth = false
+    @State private var photosCount = 0
+    @State private var likesCount = 0
+
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    HStack(spacing: 16) {
-                        Circle()
-                            .fill(Color(.systemGray4))
+                if authService.isAuthenticated, let user = authService.currentUser {
+                    // User Info Section
+                    Section {
+                        HStack(spacing: 16) {
+                            // Avatar
+                            AsyncImageView(
+                                url: URL(string: user.avatar_url ?? ""),
+                                placeholder: Circle()
+                                    .fill(Color(.systemGray5))
+                                    .frame(width: 70, height: 70)
+                            )
                             .frame(width: 70, height: 70)
+                            .clipShape(Circle())
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Guest User")
-                                .font(.title2.bold())
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(user.username)
+                                    .font(.title2.bold())
 
-                            Text("Sign in to sync your favorites")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
+                                Text(user.email)
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+
+                            // Sign out button
+                            Button {
+                                authService.signOut()
+                            } label: {
+                                Image(systemName: "arrow.right.square")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
                         }
+                        .padding(.vertical, 8)
+                    }
 
-                        Spacer()
+                    // Statistics Section
+                    Section("Statistics") {
+                        HStack {
+                            StatRowItem(icon: "photo", title: "Photos", count: "\(photosCount)")
+                            StatRowItem(icon: "heart", title: "Likes", count: "\(likesCount)")
+                            StatRowItem(icon: "rectangle.stack", title: "Collections", count: "0")
+                        }
                     }
-                    .padding(.vertical, 8)
-                }
 
-                Section("Statistics") {
-                    HStack {
-                        StatRowItem(icon: "photo", title: "Photos", count: "0")
-                        StatRowItem(icon: "heart", title: "Likes", count: "\(0)")
-                        StatRowItem(icon: "rectangle.stack", title: "Collections", count: "0")
+                    // Settings Section
+                    Section("Settings") {
+                        NavigationLink(destination: SettingsView()) {
+                            SettingRow(icon: "gear", title: "Settings", color: .gray)
+                        }
+                        NavigationLink(destination: NotificationSettingsView()) {
+                            SettingRow(icon: "bell", title: "Notifications", color: .orange)
+                        }
+                        NavigationLink(destination: AboutView()) {
+                            SettingRow(icon: "info.circle", title: "About", color: .indigo)
+                        }
+                        Link(destination: URL(string: "https://github.com/zhichucode/unsplash_ios/issues")!) {
+                            SettingRow(icon: "questionmark.circle", title: "Help & Support", color: .blue)
+                        }
                     }
-                }
+                } else {
+                    // Guest User Section
+                    Section {
+                        HStack(spacing: 16) {
+                            Circle()
+                                .fill(Color(.systemGray4))
+                                .frame(width: 70, height: 70)
 
-                Section("Settings") {
-                    NavigationLink(destination: SettingsView()) {
-                        SettingRow(icon: "gear", title: "Settings", color: .gray)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Guest User")
+                                    .font(.title2.bold())
+
+                                Text("Sign in to sync your favorites and access more features")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+
+                            // Sign in button
+                            Button {
+                                showingAuth = true
+                            } label: {
+                                Text("Sign In")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 10)
+                                    .background(Color.blue)
+                                    .cornerRadius(10)
+                            }
+                        }
+                        .padding(.vertical, 8)
                     }
-                    NavigationLink(destination: NotificationSettingsView()) {
-                        SettingRow(icon: "bell", title: "Notifications", color: .orange)
+
+                    // Statistics Section
+                    Section("Statistics") {
+                        HStack {
+                            StatRowItem(icon: "photo", title: "Photos", count: "0")
+                            StatRowItem(icon: "heart", title: "Likes", count: "0")
+                            StatRowItem(icon: "rectangle.stack", title: "Collections", count: "0")
+                        }
                     }
-                    NavigationLink(destination: AboutView()) {
-                        SettingRow(icon: "info.circle", title: "About", color: .indigo)
+
+                    // Settings Section
+                    Section("Settings") {
+                        NavigationLink(destination: SettingsView()) {
+                            SettingRow(icon: "gear", title: "Settings", color: .gray)
+                        }
+                        NavigationLink(destination: NotificationSettingsView()) {
+                            SettingRow(icon: "bell", title: "Notifications", color: .orange)
+                        }
+                        NavigationLink(destination: AboutView()) {
+                            SettingRow(icon: "info.circle", title: "About", color: .indigo)
+                        }
+                        Link(destination: URL(string: "https://github.com/zhichucode/unsplash_ios/issues")!) {
+                            SettingRow(icon: "questionmark.circle", title: "Help & Support", color: .blue)
+                        }
                     }
-                    Link(destination: URL(string: "https://github.com/zhichucode/unsplash_ios/issues")!) {
-                        SettingRow(icon: "questionmark.circle", title: "Help & Support", color: .blue)
+
+                    Section {
+                        HStack {
+                            Spacer()
+                            Button("Sign In / Create Account") {
+                                showingAuth = true
+                            }
+                        }
                     }
                 }
 
@@ -66,6 +159,17 @@ struct ProfileView: View {
             }
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.large)
+            .sheet(isPresented: $showingAuth) {
+                AuthView()
+                    .presentationDetents([.sheet, .popover])
+                    .presentationDragIndicator(.visible)
+            }
+        }
+        .onAppear {
+            // Check current user on appear
+            Task {
+                await authService.checkCurrentUser()
+            }
         }
     }
 }
