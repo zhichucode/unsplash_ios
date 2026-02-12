@@ -2,14 +2,15 @@
 //  PhotoGridCell.swift
 //  unsplash
 //
-//  Photo grid cell component for home feed
+//  Photo grid cell with dynamic height and alternating layout
 //
 
 import SwiftUI
 
 struct PhotoGridCell: View {
     let photo: Photo
-    @State private var imageAspectRatio: CGFloat = 1.0
+    let index: Int
+    let totalPhotos: Int
 
     var body: some View {
         GeometryReader { geometry in
@@ -20,8 +21,7 @@ struct PhotoGridCell: View {
                     .frame(width: geometry.size.width, height: geometry.size.height)
                     .clipped()
                     .onAppear {
-                        // Calculate aspect ratio
-                        imageAspectRatio = photo.aspectRatio
+                        // Calculate aspect ratio is handled at parent level
                     }
 
                 // Gradient overlay
@@ -75,22 +75,5 @@ struct PhotoGridCell: View {
         }
         .background(Color(.systemGray6))
         .cornerRadius(12)
-    }
-}
-
-// Preview
-#Preview {
-    let mockPhotos = Photo.generateMockPhotos(count: 6)
-
-    return LazyVGrid(
-        columns: [
-            GridItem(.adaptive(minimum: 150, maximum: 200), spacing: 2)
-        ],
-        spacing: 2
-    ) {
-        ForEach(mockPhotos) { photo in
-            PhotoGridCell(photo: photo)
-                .aspectRatio(photo.aspectRatio, contentMode: .fit)
-        }
     }
 }
