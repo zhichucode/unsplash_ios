@@ -18,7 +18,7 @@ class APIClient {
 
     private init() {
         // Read from Pexels.config.xcconfig
-        let config = ProcessInfo.processInfo.environment
+        let environment = ProcessInfo.processInfo.environment
 
         // Try to get from config file first
         if let configPath = Bundle.main.path(forResource: "Pexels.config", ofType: "xcconfig"),
@@ -29,8 +29,8 @@ class APIClient {
             self.apiKey = apiKey
         } else {
             // Fallback to environment variables or hardcoded values
-            self.baseURL = config["PEXELS_BASE_URL"] as? String ?? "https://api.pexels.com/v1"
-            self.apiKey = config["PEXELS_API_KEY"] as? String ?? ""
+            self.baseURL = environment["PEXELS_BASE_URL"] ?? "https://api.pexels.com/v1"
+            self.apiKey = environment["PEXELS_API_KEY"] ?? ""
         }
 
         let configuration = URLSessionConfiguration.default
@@ -189,7 +189,7 @@ class APIClient {
                 )
                 if let data = try? JSONEncoder().encode(emptyResponse),
                    let decoded = try? JSONDecoder().decode(T.self, from: data) {
-                    return decoded as! T
+                    return decoded
                 }
             }
 
@@ -231,7 +231,7 @@ class APIClient {
 
             if let data = try? JSONEncoder().encode(response),
                let decoded = try? JSONDecoder().decode(T.self, from: data) {
-                return decoded as! T
+                return decoded
             }
             throw NetworkError.unknown
         }
