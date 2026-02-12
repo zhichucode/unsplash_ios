@@ -2,86 +2,45 @@
 //  APIEndpoint.swift
 //  unsplash
 //
-//  API endpoint definitions
+//  API endpoint definitions for Pexels
 //
 
 import Foundation
 
 enum APIEndpoint {
     // Photos
-    case listPhotos(page: Int, perPage: Int, orderBy: String)
-    case getPhoto(id: String)
-    case getPhotoStatistics(id: String)
-    case getPhotoDownloadLink(id: String)
-    case getRandomPhotos(count: Int?)
-
-    // Search
+    case curatedPhotos(page: Int, perPage: Int)
+    case listPhotos(page: Int, perPage: Int)
     case searchPhotos(query: String, page: Int, perPage: Int)
-
-    // Users
-    case getUserProfile(username: String)
-    case getUserPhotos(username: String, page: Int, perPage: Int)
-    case getUserLikes(username: String, page: Int, perPage: Int)
 
     var path: String {
         switch self {
         // Photos
+        case .curatedPhotos:
+            return "/curated"
         case .listPhotos:
             return "/photos"
         case .getPhoto(let id):
             return "/photos/\(id)"
-        case .getPhotoStatistics(let id):
-            return "/photos/\(id)/statistics"
-        case .getPhotoDownloadLink(let id):
-            return "/photos/\(id)/download"
-        case .getRandomPhotos:
-            return "/photos/random"
-
-        // Search
         case .searchPhotos:
-            return "/search/photos"
-
-        // Users
-        case .getUserProfile(let username):
-            return "/users/\(username)"
-        case .getUserPhotos(let username, _, _):
-            return "/users/\(username)/photos"
-        case .getUserLikes(let username, _, _):
-            return "/users/\(username)/likes"
+            return "/search" // Note: Pexels uses /search not /search/photos
         }
     }
 
     var queryItems: [URLQueryItem]? {
         switch self {
-        case .listPhotos(let page, let perPage, let orderBy):
+        case .curatedPhotos(let page, let perPage):
             return [
                 URLQueryItem(name: "page", value: "\(page)"),
-                URLQueryItem(name: "per_page", value: "\(perPage)"),
-                URLQueryItem(name: "order_by", value: orderBy)
+                URLQueryItem(name: "per_page", value: "\(perPage)")
             ]
-        case .getPhoto, .getPhotoStatistics, .getPhotoDownloadLink, .getUserProfile:
+        case .listPhotos(let page, let perPage):
+            return [
+                URLQueryItem(name: "page", value: "\(page)"),
+                URLQueryItem(name: "per_page", value: "\(perPage)")
+            ]
+        case .searchPhotos:
             return nil
-        case .getRandomPhotos(let count):
-            if let count = count {
-                return [URLQueryItem(name: "count", value: "\(count)")]
-            }
-            return nil
-        case .searchPhotos(let query, let page, let perPage):
-            return [
-                URLQueryItem(name: "query", value: query),
-                URLQueryItem(name: "page", value: "\(page)"),
-                URLQueryItem(name: "per_page", value: "\(perPage)")
-            ]
-        case .getUserPhotos(_, let page, let perPage):
-            return [
-                URLQueryItem(name: "page", value: "\(page)"),
-                URLQueryItem(name: "per_page", value: "\(perPage)")
-            ]
-        case .getUserLikes(_, let page, let perPage):
-            return [
-                URLQueryItem(name: "page", value: "\(page)"),
-                URLQueryItem(name: "per_page", value: "\(perPage)")
-            ]
         }
     }
 }
@@ -112,14 +71,70 @@ enum NetworkError: LocalizedError {
     }
 }
 
-struct SearchResponse: Codable {
-    let total: Int
-    let totalPages: Int
-    let results: [Photo]
+// MARK: - Pexels API Response Models
+
+struct PexelsPhotosResponse: Codable {
+    let photos: [PexelsPhoto]
+    let page: Int?
+    let perPage: Int?
+    let totalResults: Int?
+    let nextPage: String?
 
     enum CodingKeys: String, CodingKey {
-        case total
-        case totalPages = "total_pages"
-        case results
+        case photos = "photos"
+        case page
+        case perPage = "per_page"
+        case totalResults = "total_results"
+        case nextPage
     }
+}
+
+struct PexelsSearchResponse: Codable {
+    let photos: [PexelsPhoto]
+    let page: Int?
+    let perPage: Int?
+    let totalResults: Int?
+    let nextPage: String?
+
+    enum CodingKeys: String, CodingKey {
+        case photos
+        case page
+        case perPage = "per_page"
+        case totalResults = "total_results"
+        case nextPage
+    }
+}
+
+// Pexels specific photo model
+struct PexelsPhoto: Codable {
+    let id: Int
+    let width: Int
+    let height: Int
+    let url: String
+    let photographer: String
+    let photographerURL: String?
+    let photographerID: Int
+    let avgColor: String?
+    let src: PexelsPhotoSource
+    let alt: String?
+    let liked: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id, width, height, url, photographer
+        case photographerURL = "photographer_url"
+        case photographerID = "photographer_id"
+        case avgColor = "avg_color"
+        case src, alt, liked
+    }
+}
+
+struct PexelsPhotoSource: Codable {
+    let original: String
+    let large2x: String
+    let large: String
+    let medium: String
+    let small: String
+    let portrait: String?
+    let landscape: String?
+    let tiny: String?
 }

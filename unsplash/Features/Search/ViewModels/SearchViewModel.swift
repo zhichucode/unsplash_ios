@@ -68,9 +68,62 @@ class SearchViewModel: ObservableObject {
                     perPage: 20
                 )
 
-                searchResults = response.results
-                totalResults = response.total
-                totalPages = response.totalPages
+                // Convert PexelsPhoto to Photo
+                searchResults = response.photos.map { pexelsPhoto in
+                    Photo(
+                        id: "\(pexelsPhoto.id)",
+                        width: pexelsPhoto.width,
+                        height: pexelsPhoto.height,
+                        color: pexelsPhoto.avgColor,
+                        blurHash: nil,
+                        description: pexelsPhoto.alt,
+                        altDescription: pexelsPhoto.alt,
+                        urls: PhotoURLs(
+                            raw: pexelsPhoto.src.original,
+                            full: pexelsPhoto.src.large2x,
+                            regular: pexelsPhoto.src.large,
+                            small: pexelsPhoto.src.medium,
+                            thumb: pexelsPhoto.src.small,
+                            smallS3: pexelsPhoto.src.tiny
+                        ),
+                        links: PhotoLinks(
+                            selfLink: nil,
+                            html: pexelsPhoto.photographerURL,
+                            download: pexelsPhoto.url,
+                            downloadLocation: nil
+                        ),
+                        likes: 0,
+                        likedByUser: pexelsPhoto.liked,
+                        user: User(
+                            id: "\(pexelsPhoto.photographerID)",
+                            username: "",
+                            name: pexelsPhoto.photographer,
+                            firstName: pexelsPhoto.photographer,
+                            lastName: nil,
+                            bio: nil,
+                            location: nil,
+                            links: UserLinks(
+                                selfLink: nil,
+                                html: pexelsPhoto.photographerURL,
+                                photos: nil,
+                                likes: nil,
+                                portfolio: nil
+                            ),
+                            profileImage: nil,
+                            totalLikes: nil,
+                            totalPhotos: nil,
+                            totalCollections: nil,
+                            instagramUsername: nil,
+                            twitterUsername: nil
+                        ),
+                        exif: nil,
+                        location: nil,
+                        stats: nil,
+                        createdAt: nil
+                    )
+                }
+                totalResults = response.totalResults ?? 0
+                totalPages = Int((Double(totalResults) / Double(20)).rounded(.up)) + 1
                 currentPage = 1
                 errorMessage = nil
 
@@ -98,7 +151,61 @@ class SearchViewModel: ObservableObject {
                 perPage: 20
             )
 
-            searchResults.append(contentsOf: response.results)
+            // Convert PexelsPhoto to Photo and append
+            let newPhotos = response.photos.map { pexelsPhoto in
+                Photo(
+                    id: "\(pexelsPhoto.id)",
+                    width: pexelsPhoto.width,
+                    height: pexelsPhoto.height,
+                    color: pexelsPhoto.avgColor,
+                    blurHash: nil,
+                    description: pexelsPhoto.alt,
+                    altDescription: pexelsPhoto.alt,
+                    urls: PhotoURLs(
+                        raw: pexelsPhoto.src.original,
+                        full: pexelsPhoto.src.large2x,
+                        regular: pexelsPhoto.src.large,
+                        small: pexelsPhoto.src.medium,
+                        thumb: pexelsPhoto.src.small,
+                        smallS3: pexelsPhoto.src.tiny
+                    ),
+                    links: PhotoLinks(
+                        selfLink: nil,
+                        html: pexelsPhoto.photographerURL,
+                        download: pexelsPhoto.url,
+                        downloadLocation: nil
+                    ),
+                    likes: 0,
+                    likedByUser: pexelsPhoto.liked,
+                    user: User(
+                        id: "\(pexelsPhoto.photographerID)",
+                        username: "",
+                        name: pexelsPhoto.photographer,
+                        firstName: pexelsPhoto.photographer,
+                        lastName: nil,
+                        bio: nil,
+                        location: nil,
+                        links: UserLinks(
+                            selfLink: nil,
+                            html: pexelsPhoto.photographerURL,
+                            photos: nil,
+                            likes: nil,
+                            portfolio: nil
+                        ),
+                        profileImage: nil,
+                        totalLikes: nil,
+                        totalPhotos: nil,
+                        totalCollections: nil,
+                        instagramUsername: nil,
+                        twitterUsername: nil
+                    ),
+                    exif: nil,
+                    location: nil,
+                    stats: nil,
+                    createdAt: nil
+                )
+            }
+            searchResults.append(contentsOf: newPhotos)
         } catch {
             errorMessage = error.localizedDescription
         }

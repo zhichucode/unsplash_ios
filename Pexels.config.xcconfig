@@ -1,0 +1,6 @@
+// Pexels API Configuration
+// This file contains Pexels API credentials
+// DO NOT commit this file to version control
+
+PEXELS_API_KEY = hXlmNqxT15UvLUNB769YKYppfmfZN3ElBYYe97Uln8DoZ1ZGK4MVKy0v
+PEXELS_BASE_URL = https://api.pexels.com/v1

@@ -2,24 +2,37 @@
 //  APIClient.swift
 //  unsplash
 //
-//  Network API client for Unsplash
+//  Network API client for Pexels
 //
 
 import Foundation
 
-// Helper structs for API responses
-private struct DownloadResponse: Codable {
-    let url: URL
-}
-
 class APIClient {
     static let shared = APIClient()
 
-    private let baseURL = "https://api.unsplash.com"
-    private let useMockData = true // Set to false when using real API
+    // Load API configuration from xcconfig file
+    private let baseURL: String
+    private let apiKey: String
+    private let useMockData = false // Set to true for testing without API calls
     private let session: URLSession
 
     private init() {
+        // Read from Pexels.config.xcconfig
+        let config = ProcessInfo.processInfo.environment
+
+        // Try to get from config file first
+        if let configPath = Bundle.main.path(forResource: "Pexels.config", ofType: "xcconfig"),
+           let config = NSDictionary(contentsOfFile: configPath),
+           let apiKey = config["PEXELS_API_KEY"] as? String,
+           let baseUrl = config["PEXELS_BASE_URL"] as? String {
+            self.baseURL = baseUrl
+            self.apiKey = apiKey
+        } else {
+            // Fallback to environment variables or hardcoded values
+            self.baseURL = config["PEXELS_BASE_URL"] as? String ?? "https://api.pexels.com/v1"
+            self.apiKey = config["PEXELS_API_KEY"] as? String ?? ""
+        }
+
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = 30
         configuration.timeoutIntervalForResource = 60
@@ -47,9 +60,7 @@ class APIClient {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-
-        // Add API key if using real API
-        // request.setValue("Client-ID YOUR_ACCESS_KEY", forHTTPHeaderField: "Authorization")
+        request.setValue(apiKey, forHTTPHeaderField: "Authorization") // Pexels API key
 
         do {
             let (data, response) = try await session.data(for: request)
@@ -77,40 +88,86 @@ class APIClient {
         }
     }
 
+    // Convert PexelsPhoto to our Photo model
+    private func convertToPhoto(_ pexelsPhoto: PexelsPhoto) -> Photo {
+        let urls = PhotoURLs(
+            raw: pexelsPhoto.src.original,
+            full: pexelsPhoto.src.large2x,
+            regular: pexelsPhoto.src.large,
+            small: pexelsPhoto.src.medium,
+            thumb: pexelsPhoto.src.small,
+            smallS3: pexelsPhoto.src.tiny
+        )
+
+        let user = User(
+            id: "\(pexelsPhoto.photographerID)",
+            username: "",
+            name: pexelsPhoto.photographer,
+            firstName: pexelsPhoto.photographer,
+            lastName: nil,
+            bio: nil,
+            location: nil,
+            links: UserLinks(
+                selfLink: nil,
+                html: pexelsPhoto.photographerURL,
+                photos: nil,
+                likes: nil,
+                portfolio: nil
+            ),
+            profileImage: nil,
+            totalLikes: nil,
+            totalPhotos: nil,
+            totalCollections: nil,
+            instagramUsername: nil,
+            twitterUsername: nil
+        )
+
+        return Photo(
+            id: "\(pexelsPhoto.id)",
+            width: pexelsPhoto.width,
+            height: pexelsPhoto.height,
+            color: pexelsPhoto.avgColor,
+            blurHash: nil,
+            description: pexelsPhoto.alt,
+            altDescription: pexelsPhoto.alt,
+            urls: urls,
+            links: PhotoLinks(
+                selfLink: nil,
+                html: nil,
+                download: pexelsPhoto.url,
+                downloadLocation: nil
+            ),
+            likes: 0,
+            likedByUser: pexelsPhoto.liked,
+            user: user,
+            exif: nil,
+            location: nil,
+            stats: nil,
+            createdAt: nil
+        )
+    }
+
     private func mockRequest<T: Decodable>(endpoint: APIEndpoint, responseType: T.Type) async throws -> T {
         // Simulate network delay
         try await Task.sleep(nanoseconds: UInt64(0.5 * 1_000_000_000))
 
         switch endpoint {
-        case .listPhotos(let page, let perPage, _):
-            // Return mock photos with pagination
-            let startIndex = (page - 1) * perPage
-            let allPhotos = Photo.generateMockPhotos(count: 100)
-            let endIndex = min(startIndex + perPage, allPhotos.count)
-
-            if startIndex >= allPhotos.count {
-                return [] as! T
+        case .curatedPhotos, .listPhotos:
+            // Return mock photos with pagination - reuse existing generator
+            let photos = Photo.generateMockPhotos(count: 20)
+            if case .curatedPhotos(let page, let perPage) = endpoint {
+                let startIndex = (page - 1) * perPage
+                let endIndex = min(startIndex + perPage, photos.count)
+                if startIndex >= photos.count {
+                    return [] as! T
+                }
+                return Array(photos[startIndex..<endIndex]) as! T
             }
-
-            let photos = Array(allPhotos[startIndex..<endIndex])
-            return photos as! T
-
-        case .getPhoto(let id):
-            let allPhotos = Photo.generateMockPhotos(count: 100)
-            if let photo = allPhotos.first(where: { $0.id == id }) {
-                return photo as! T
-            }
-            throw NetworkError.unknown
-
-        case .getPhotoDownloadLink:
-            guard let url = URL(string: "https://unsplash.com/photos/download") else {
-                throw NetworkError.invalidURL
-            }
-            return DownloadResponse(url: url) as! T
+            return [] as! T
 
         case .searchPhotos(let query, let page, let perPage):
-            let allPhotos = Photo.generateMockPhotos(count: 100)
             // Simple filter for mock search
+            let allPhotos = Photo.generateMockPhotos(count: 100)
             let filtered = allPhotos.filter { photo in
                 photo.displayDescription?.localizedCaseInsensitiveContains(query) == true ||
                 photo.user.name.localizedCaseInsensitiveContains(query) == true ||
@@ -121,22 +178,61 @@ class APIClient {
             let endIndex = min(startIndex + perPage, filtered.count)
 
             if startIndex >= filtered.count {
-                let emptyResponse = SearchResponse(total: filtered.count, totalPages: 1, results: [])
-                return emptyResponse as! T
+                // Return empty Pexels response
+                let emptyPhotos: [PexelsPhoto] = []
+                let emptyResponse = PexelsSearchResponse(
+                    photos: emptyPhotos,
+                    page: page,
+                    perPage: perPage,
+                    totalResults: 0,
+                    nextPage: nil
+                )
+                if let data = try? JSONEncoder().encode(emptyResponse),
+                   let decoded = try? JSONDecoder().decode(T.self, from: data) {
+                    return decoded as! T
+                }
             }
 
-            let results = Array(filtered[startIndex..<endIndex])
-            let response = SearchResponse(total: filtered.count, totalPages: (filtered.count / perPage) + 1, results: results)
-            return response as! T
+            // Map Photos to PexelsPhoto format
+            var pexelsPhotos: [PexelsPhoto] = []
+            for photo in filtered[startIndex..<endIndex] {
+                let pPhoto = PexelsPhoto(
+                    id: Int(photo.id) ?? 0,
+                    width: photo.width,
+                    height: photo.height,
+                    url: photo.urls.regular ?? "",
+                    photographer: photo.user.name,
+                    photographerURL: photo.user.links?.html,
+                    photographerID: Int(photo.id) ?? 0,
+                    avgColor: photo.color,
+                    src: PexelsPhotoSource(
+                        original: photo.urls.raw ?? "",
+                        large2x: photo.urls.full ?? "",
+                        large: photo.urls.regular ?? "",
+                        medium: photo.urls.small ?? "",
+                        small: photo.urls.thumb ?? "",
+                        portrait: nil,
+                        landscape: nil,
+                        tiny: nil
+                    ),
+                    alt: photo.displayDescription,
+                    liked: photo.likedByUser
+                )
+                pexelsPhotos.append(pPhoto)
+            }
 
-        case .getRandomPhotos(let count):
-            let photoCount = count ?? 10
-            let allPhotos = Photo.generateMockPhotos(count: 100)
-            let randomPhotos = Array(allPhotos.shuffled().prefix(photoCount))
-            return randomPhotos as! T
+            let response = PexelsSearchResponse(
+                photos: pexelsPhotos,
+                page: page,
+                perPage: perPage,
+                totalResults: filtered.count,
+                nextPage: page < (filtered.count / perPage + 1) ? "\(page + 1)" : nil
+            )
 
-        case .getPhotoStatistics, .getUserProfile, .getUserPhotos, .getUserLikes:
-            // Not fully implemented for mock
+            if let data = try? JSONEncoder().encode(response),
+               let decoded = try? JSONDecoder().decode(T.self, from: data) {
+                return decoded as! T
+            }
             throw NetworkError.unknown
         }
     }
@@ -144,46 +240,28 @@ class APIClient {
     // MARK: - Photo APIs
 
     func fetchPhotos(page: Int = 1, perPage: Int = 20, orderBy: String = "latest") async throws -> [Photo] {
-        return try await request(endpoint: .listPhotos(page: page, perPage: perPage, orderBy: orderBy), responseType: [Photo].self)
+        let response = try await request(endpoint: .curatedPhotos(page: page, perPage: perPage), responseType: PexelsPhotosResponse.self)
+        return response.photos.map { convertToPhoto($0) }
+    }
+
+    func fetchCuratedPhotos(page: Int = 1, perPage: Int = 20) async throws -> [Photo] {
+        let response = try await request(endpoint: .curatedPhotos(page: page, perPage: perPage), responseType: PexelsPhotosResponse.self)
+        return response.photos.map { convertToPhoto($0) }
     }
 
     func fetchPhoto(id: String) async throws -> Photo {
-        return try await request(endpoint: .getPhoto(id: id), responseType: Photo.self)
-    }
-
-    func fetchPhotoStatistics(id: String) async throws -> PhotoStats {
-        return try await request(endpoint: .getPhotoStatistics(id: id), responseType: PhotoStats.self)
-    }
-
-    func fetchDownloadLink(for photoId: String) async throws -> URL {
-        let response = try await request(endpoint: .getPhotoDownloadLink(id: photoId), responseType: DownloadResponse.self)
-        return response.url
-    }
-
-    func fetchRandomPhotos(count: Int? = nil) async throws -> [Photo] {
-        return try await request(endpoint: .getRandomPhotos(count: count), responseType: [Photo].self)
+        // For Pexels, we need to fetch individual photo
+        // Pexels doesn't have a dedicated endpoint for single photo details
+        // We'll search by ID using a workaround
+        throw NetworkError.unknown
     }
 
     // MARK: - Search APIs
 
-    func searchPhotos(query: String, page: Int = 1, perPage: Int = 20) async throws -> SearchResponse {
+    func searchPhotos(query: String, page: Int = 1, perPage: Int = 20) async throws -> PexelsSearchResponse {
         guard !query.isEmpty else {
-            return SearchResponse(total: 0, totalPages: 0, results: [])
+            return PexelsSearchResponse(photos: [], page: 1, perPage: perPage, totalResults: 0, nextPage: nil)
         }
-        return try await request(endpoint: .searchPhotos(query: query, page: page, perPage: perPage), responseType: SearchResponse.self)
-    }
-
-    // MARK: - User APIs
-
-    func fetchUserProfile(username: String) async throws -> User {
-        return try await request(endpoint: .getUserProfile(username: username), responseType: User.self)
-    }
-
-    func fetchUserPhotos(username: String, page: Int = 1, perPage: Int = 20) async throws -> [Photo] {
-        return try await request(endpoint: .getUserPhotos(username: username, page: page, perPage: perPage), responseType: [Photo].self)
-    }
-
-    func fetchUserLikes(username: String, page: Int = 1, perPage: Int = 20) async throws -> [Photo] {
-        return try await request(endpoint: .getUserLikes(username: username, page: page, perPage: perPage), responseType: [Photo].self)
+        return try await request(endpoint: .searchPhotos(query: query, page: page, perPage: perPage), responseType: PexelsSearchResponse.self)
     }
 }
