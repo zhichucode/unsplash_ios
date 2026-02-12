@@ -177,8 +177,15 @@ struct AuthView: View {
             .background(Color(.systemGroupedBackground))
         }
     }
+}
 
-// Preview
-#Preview {
+// MARK: - Previews
+
+#Preview("Sign In") {
+    AuthView()
+}
+
+#Preview("Sign Up") {
+    authMode = .signUp
     AuthView()
 }
