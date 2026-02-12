@@ -2,7 +2,8 @@
 //  unsplashApp.swift
 //  unsplash
 //
-//  Created by Hoppe on 11/2/26.
+//  Unsplash iOS Application
+//  A beautiful photo browsing app powered by Unsplash API
 //
 
 import SwiftUI
@@ -11,7 +12,8 @@ import SwiftUI
 struct unsplashApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            MainTabView()
+                .preferredColorScheme(nil) // Follow system appearance
         }
     }
 }
