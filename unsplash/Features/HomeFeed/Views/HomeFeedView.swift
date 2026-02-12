@@ -2,7 +2,7 @@
 //  HomeFeedView.swift
 //  unsplash
 //
-//  Home feed view displaying photo grid
+//  Home feed view with Pinterest-style waterfall layout
 //
 
 import SwiftUI
@@ -30,39 +30,79 @@ struct HomeFeedView: View {
                     )
                 } else {
                     ScrollView {
-                        LazyVGrid(spacing: 2, pinnedViews: []) {
-                            ForEach(viewModel.photos) { photo in
-                                NavigationLink(destination: PhotoDetailView(photo: photo)) {
-                                    PhotoGridCell(photo: photo)
-                                }
-                                .onAppear {
-                                    if photo.id == viewModel.photos[safe: viewModel.photos.count - 5]?.id {
-                                        Task {
-                                            await viewModel.loadMorePhotos()
+                        LazyVStack(spacing: 0, pinnedViews: []) {
+                            ForEach(Array(viewModel.photos.enumerated()), id: \.element.id) { index, photo in
+                                // Alternating layout: check if row is even (0, 2, 4...) or odd (1, 3, 5...)
+                                let isEvenRow = (index / 2) % 2 == 0
+
+                                Group {
+                                    if isEvenRow {
+                                        // Even row: 2-column layout
+                                        HStack(spacing: 0) {
+                                            ForEach(0..<2, id: \.self) { colIndex in
+                                                let cellIndex = index + colIndex
+                                                if cellIndex < viewModel.photos.count {
+                                                    let cellPhoto = viewModel.photos[cellIndex]
+
+                                                    PhotoGridCell(photo: cellPhoto)
+                                                        .frame(maxWidth: .infinity)
+                                                        .aspectRatio(cellPhoto.aspectRatio, contentMode: .fill)
+                                                        .onAppear {
+                                                            if cellIndex >= viewModel.photos.count - 5 {
+                                                                Task {
+                                                                    await viewModel.loadMorePhotos()
+                                                                }
+                                                            }
+                                                        }
+                                                }
+                                            }
                                         }
+                                    } else {
+                                        // Odd row: 1 full-width photo
+                                        HStack(spacing: 0) {
+                                            PhotoGridCell(photo: photo)
+                                                .frame(maxWidth: .infinity)
+                                                .aspectRatio(photo.aspectRatio, contentMode: .fill)
+                                                .onAppear {
+                                                    if index >= viewModel.photos.count - 5 {
+                                                        Task {
+                                                            await viewModel.loadMorePhotos()
+                                                        }
+                                                    }
+                                                }
+                                        }
+                                    }
                                 }
                             }
-                    }
+                        }
 
-                    // Loading indicator at bottom
-                    if viewModel.isLoadingMore {
-                        HStack {
-                            Spacer()
-                            ProgressView()
-                                .tint(.primary)
-                                .padding()
-                            Spacer()
+                        // Loading indicator at bottom
+                        if viewModel.isLoadingMore {
+                            HStack {
+                                Spacer()
+                                ProgressView()
+                                    .tint(.primary)
+                                    .padding()
+                                Spacer()
+                            }
                         }
                     }
-                }
-                .padding(.horizontal, 8)
-                .refreshable {
-                    await viewModel.refresh()
+                    .padding(.horizontal, 8)
+                    .refreshable {
+                        await viewModel.refresh()
+                    }
                 }
             }
             .navigationTitle("Discover")
             .navigationBarTitleDisplayMode(.large)
         }
+    }
+}
+
+// Helper for safe array access
+extension Collection {
+    subscript(safe index: Index) -> Element? {
+        return indices.contains(index) ? self[index] : nil
     }
 }
 
