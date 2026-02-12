@@ -1,0 +1,13 @@
+# Dependency Review Action
+
+This repo is **not** using Dependabot or any other dependency management tool
+because the project currently has **no external package dependencies**.
+
+If dependencies are added in the future, you can enable Dependabot by:
+1. Going to repository **Settings**
+2. Click **Security & analysis**
+3. Scroll to **Dependabot**
+4. Click **Enable Dependabot**
+
+For more information, see:
+- https://docs.github.com/en/code-security/dependabot

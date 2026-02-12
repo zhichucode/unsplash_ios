@@ -1,0 +1,180 @@
+name: iOS CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  XCODE_VERSION: '16.2'
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: macos-14
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: ${{ env.XCODE_VERSION }}
+
+    - name: Show Xcode Version
+      run: xcodebuild -version
+
+    - name: Resolve Dependencies
+      run: |
+        echo "No external dependencies to resolve"
+        echo "Using Swift Package Manager for dependencies if needed"
+
+    - name: Build for iOS Simulator
+      run: |
+        xcodebuild clean build \
+          -project unsplash.xcodeproj \
+          -scheme unsplash \
+          -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
+          -quiet \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
+          | xcpretty || exit 1
+
+    - name: Build for Testing
+      run: |
+        xcodebuild build-for-testing \
+          -project unsplash.xcodeproj \
+          -scheme unsplash \
+          -destination 'platform=iOS Simulator,name=iiPhone 17 Pro,OS=latest' \
+          -quiet \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
+          | xcpretty || exit 1
+
+    - name: Run Unit Tests
+      run: |
+        xcodebuild test \
+          -project unsplash.xcodeproj \
+          -scheme unsplash \
+          -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
+          -quiet \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
+          -enableCodeCoverage YES \
+          | xcpretty || exit 1
+
+    - name: Upload Coverage Reports
+      uses: codecov/codecov-action@v4
+      if: success()
+      with:
+        files: ./derivedData/Logs/Test/*.xcresult
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  codeql:
+    name: CodeQL Analysis
+    runs-on: macos-14
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'swift' ]
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.language }}
+        queries: security-extended
+
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@v3
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:${{matrix.language}}"
+
+  lint-swift:
+    name: Swift Lint
+    runs-on: macos-14
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Install SwiftLint
+      run: brew install swiftlint
+
+    - name: Run SwiftLint
+      run: |
+        swiftlint lint --strict \
+          --reporter github-actions-logging \
+          --reporter html \
+          || true
+
+    - name: Upload SwiftLint Results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: swiftlint-results
+        path: swiftlint-results.html
+
+  validate-swiftformat:
+    name: Validate Code Formatting
+    runs-on: macos-14
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Install SwiftFormat
+      run: brew install swiftformat
+
+    - name: Check Formatting
+      run: |
+        swiftformat --lint unsplash/ \
+          --ignore unsplash.xcodeproj \
+          --strict || true
+
+  verify-build:
+    name: Verify Build on Multiple Destinations
+    runs-on: macos-14
+    needs: build-and-test
+
+    strategy:
+      matrix:
+        destination:
+          - 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest'
+          - 'platform=iOS Simulator,name=iPhone 17,OS=latest'
+          - 'platform=iOS Simulator,name=iPhone SE (3rd generation),OS=latest'
+          - 'platform=iOS Simulator,name=iPad Pro (12.9-inch) (6th generation),OS=latest'
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Build on ${{ matrix.destination }}
+      run: |
+        xcodebuild build \
+          -project unsplash.xcodeproj \
+          -scheme unsplash \
+          -destination '${{ matrix.destination }}' \
+          -quiet \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
+          | xcpretty || exit 1
