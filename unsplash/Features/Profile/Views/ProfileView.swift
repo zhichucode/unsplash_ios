@@ -40,10 +40,18 @@ struct ProfileView: View {
                 }
 
                 Section("Settings") {
-                    SettingRow(icon: "gear", title: "Settings", color: .gray)
-                    SettingRow(icon: "bell", title: "Notifications", color: .orange)
-                    SettingRow(icon: "questionmark.circle", title: "Help & Support", color: .blue)
-                    SettingRow(icon: "info.circle", title: "About", color: .indigo)
+                    NavigationLink(destination: SettingsView()) {
+                        SettingRow(icon: "gear", title: "Settings", color: .gray)
+                    }
+                    NavigationLink(destination: NotificationSettingsView()) {
+                        SettingRow(icon: "bell", title: "Notifications", color: .orange)
+                    }
+                    NavigationLink(destination: AboutView()) {
+                        SettingRow(icon: "info.circle", title: "About", color: .indigo)
+                    }
+                    Link(destination: URL(string: "https://github.com/zhichucode/unsplash_ios/issues")!) {
+                        SettingRow(icon: "questionmark.circle", title: "Help & Support", color: .blue)
+                    }
                 }
 
                 Section {
