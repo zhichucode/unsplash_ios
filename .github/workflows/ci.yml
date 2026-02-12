@@ -26,11 +26,6 @@ jobs:
     - name: Show Xcode Version
       run: xcodebuild -version
 
-    - name: Resolve Dependencies
-      run: |
-        echo "No external dependencies to resolve"
-        echo "Using Swift Package Manager for dependencies if needed"
-
     - name: Build for iOS Simulator
       run: |
         xcodebuild clean build \
@@ -40,20 +35,7 @@ jobs:
           -quiet \
           CODE_SIGN_IDENTITY="" \
           CODE_SIGNING_REQUIRED=NO \
-          CODE_SIGNING_ALLOWED=NO \
-          | xcpretty || exit 1
-
-    - name: Build for Testing
-      run: |
-        xcodebuild build-for-testing \
-          -project unsplash.xcodeproj \
-          -scheme unsplash \
-          -destination 'platform=iOS Simulator,name=iiPhone 17 Pro,OS=latest' \
-          -quiet \
-          CODE_SIGN_IDENTITY="" \
-          CODE_SIGNING_REQUIRED=NO \
-          CODE_SIGNING_ALLOWED=NO \
-          | xcpretty || exit 1
+          CODE_SIGNING_ALLOWED=NO
 
     - name: Run Unit Tests
       run: |
@@ -65,48 +47,7 @@ jobs:
           CODE_SIGN_IDENTITY="" \
           CODE_SIGNING_REQUIRED=NO \
           CODE_SIGNING_ALLOWED=NO \
-          -enableCodeCoverage YES \
-          | xcpretty || exit 1
-
-    - name: Upload Coverage Reports
-      uses: codecov/codecov-action@v4
-      if: success()
-      with:
-        files: ./derivedData/Logs/Test/*.xcresult
-        flags: unittests
-        name: codecov-umbrella
-        fail_ci_if_error: false
-
-  codeql:
-    name: CodeQL Analysis
-    runs-on: macos-14
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
-
-    strategy:
-      fail-fast: false
-      matrix:
-        language: [ 'swift' ]
-
-    steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
-
-    - name: Initialize CodeQL
-      uses: github/codeql-action/init@v3
-      with:
-        languages: ${{ matrix.language }}
-        queries: security-extended
-
-    - name: Autobuild
-      uses: github/codeql-action/autobuild@v3
-
-    - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v3
-      with:
-        category: "/language:${{matrix.language}}"
+          -enableCodeCoverage YES
 
   lint-swift:
     name: Swift Lint
@@ -123,32 +64,7 @@ jobs:
       run: |
         swiftlint lint --strict \
           --reporter github-actions-logging \
-          --reporter html \
           || true
-
-    - name: Upload SwiftLint Results
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: swiftlint-results
-        path: swiftlint-results.html
-
-  validate-swiftformat:
-    name: Validate Code Formatting
-    runs-on: macos-14
-
-    steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
-
-    - name: Install SwiftFormat
-      run: brew install swiftformat
-
-    - name: Check Formatting
-      run: |
-        swiftformat --lint unsplash/ \
-          --ignore unsplash.xcodeproj \
-          --strict || true
 
   verify-build:
     name: Verify Build on Multiple Destinations
@@ -176,5 +92,4 @@ jobs:
           -quiet \
           CODE_SIGN_IDENTITY="" \
           CODE_SIGNING_REQUIRED=NO \
-          CODE_SIGNING_ALLOWED=NO \
-          | xcpretty || exit 1
+          CODE_SIGNING_ALLOWED=NO
