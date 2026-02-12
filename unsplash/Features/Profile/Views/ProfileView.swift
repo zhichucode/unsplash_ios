@@ -160,10 +160,6 @@ struct ProfileView: View {
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.large)
             .sheet(isPresented: $showingAuth) {
-                AuthView()
-                    .presentationDetents([.sheet, .popover])
-                    .presentationDragIndicator(.visible)
-            }
         }
         .onAppear {
             // Check current user on appear

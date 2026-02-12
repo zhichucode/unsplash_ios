@@ -57,16 +57,13 @@ struct UserProfile: Codable, Hashable {
     let id: String
     let email: String
     let display_name: String?
+    let user_metadata: [String: String]?
+
     var avatar_url: String? {
         return user_metadata?["avatar_url"]
     }
     var username: String {
         return display_name ?? email.split(separator: "@")[0]
-    }
-
-    private var user_metadata: [String: String]? {
-        guard let metadata = user_metadata else { return nil }
-        return try? JSONSerialization.jsonObject(with: metadata) as? [String: String]
     }
 }
 
@@ -85,25 +82,13 @@ class SupabaseAuthService: ObservableObject {
         return URLSession(configuration: config)
     }()
 
-    private var encoder: JSONEncoder {
-        let enc = JSONEncoder()
-        enc.keyEncodingStrategy = .convertToSnakeCase;
-        return enc
-    }()
-
-    private var decoder: JSONDecoder {
-        let dec = JSONDecoder()
-        dec.keyDecodingStrategy = .convertFromSnakeCase
-        return dec
-    }()
-
     // MARK: - Public Methods
 
     func checkCurrentUser() async {
         isLoading = true
         errorMessage = nil
 
-        // Get current user from session
+        // Get current user from cached profile
         await getCurrentUser()
         isLoading = false
     }
@@ -120,7 +105,7 @@ class SupabaseAuthService: ObservableObject {
                 body: request
             )
 
-            // Save token to user defaults
+            // Save token
             UserDefaults.standard.set(response.access_token, forKey: "supabase_access_token")
             if let refreshToken = response.refresh_token {
                 UserDefaults.standard.set(refreshToken, forKey: "supabase_refresh_token")
@@ -167,7 +152,7 @@ class SupabaseAuthService: ObservableObject {
     }
 
     func signOut() {
-        // Clear tokens
+        // Clear tokens and user
         UserDefaults.standard.removeObject(forKey: "supabase_access_token")
         UserDefaults.standard.removeObject(forKey: "supabase_refresh_token")
         UserDefaults.standard.removeObject(forKey: "supabase_user_profile")
@@ -187,12 +172,16 @@ class SupabaseAuthService: ObservableObject {
 
         // Get user from Supabase
         do {
-            let userProfile: UserProfile = try await getUserProfile()
+            let userProfile: UserProfile = try await performRequest(
+                endpoint: "/auth/v1/user",
+                method: "GET",
+                requiresAuth: true
+            )
             currentUser = userProfile
             isAuthenticated = true
 
             // Cache user profile
-            if let userData = try encoder.encode(userProfile),
+            if let userData = try? JSONEncoder().encode(userProfile),
                let jsonString = String(data: userData, encoding: .utf8) {
                 UserDefaults.standard.set(jsonString, forKey: "supabase_user_profile")
             }
@@ -201,21 +190,16 @@ class SupabaseAuthService: ObservableObject {
         }
     }
 
-    private func getUserProfile() async throws -> UserProfile {
-        return try await performRequest(
-            endpoint: "/auth/v1/user",
-            method: "GET",
-            requiresAuth: true
-        )
-    }
-
     private func performRequest<T: Decodable>(
         endpoint: String,
         method: String = "GET",
         body: Encodable? = nil,
         requiresAuth: Bool = false
     ) async throws -> T {
-        let url = URL(string: SupabaseConfig.projectURL + endpoint)!
+        guard let url = URL(string: SupabaseConfig.projectURL + endpoint) else {
+            throw NSError(domain: "SupabaseAuth", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"])
+        }
+
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -227,7 +211,7 @@ class SupabaseAuthService: ObservableObject {
         }
 
         if let body = body {
-            request.httpBody = try encoder.encode(body)
+            request.httpBody = try? JSONEncoder().encode(body)
         }
 
         let (data, response) = try await session.data(for: request)
@@ -240,116 +224,7 @@ class SupabaseAuthService: ObservableObject {
             throw NSError(domain: "SupabaseAuth", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "HTTP error"])
         }
 
+        let decoder = JSONDecoder()
         return try decoder.decode(T.self, from: data)
-    }
-}
-
-// MARK: - Key Encoding/Decoding Strategy
-
-struct SnakeCaseEncodingStrategy: JSONEncoder.KeyEncodingStrategy {
-    var convertToSnakeCase: Bool {
-        return true
-    }
-
-    func encode(_ value: Any) throws -> Any {
-        let mirror = Mirror(reflecting: value)
-        var dict: [String: Any] = [:]
-
-        for child in mirror.children {
-            if let key = child.label {
-                dict[key] = convertValueToSnakeCase(child.value)
-            }
-        }
-
-        return dict
-    }
-
-    private func convertValueToSnakeCase(_ value: Any) -> Any {
-        if let stringValue = value as? String {
-            return stringValue
-        } else if let dictValue = value as? [String: Any] {
-            var newDict: [String: Any] = [:]
-            for (key, val) in dictValue {
-                let newKey = camelToSnakeCase(key)
-                newDict[newKey] = convertValueToSnakeCase(val)
-            }
-            return newDict
-        } else if let arrayValue = value as? [Any] {
-            return arrayValue.map { convertValueToSnakeCase($0) }
-        }
-        return value
-    }
-
-    private func camelToSnakeCase(_ string: String) -> String {
-        var result = ""
-        var prevChar: Character?
-        for char in string {
-            if char.isUppercase {
-                if prevChar != nil && char != "_" {
-                    result += "_"
-                    result += char.lowercased()
-                } else {
-                    result += String(char)
-                }
-            } else {
-                result += String(char)
-            }
-            prevChar = char
-        }
-        return result
-    }
-}
-
-struct SnakeCaseDecodingStrategy: JSONDecoder.KeyDecodingStrategy {
-    var convertFromSnakeCase: Bool {
-        return true
-    }
-
-    func decode(_ type: Any.Type, from data: Data) throws -> Any {
-        let value = try JSONDecoder().decode(type, from: data)
-
-        if let dict = value as? [String: Any] {
-            var newDict: [String: Any] = [:]
-            for (key, val) in dict {
-                let newKey = snakeToCamelCase(key)
-                newDict[newKey] = convertSnakeToCamelCase(val)
-            }
-            return newDict
-        }
-        return value
-    }
-
-    private func snakeToCamelCase(_ string: String) -> String {
-        let components = string.split(separator: "_")
-        return components.enumerated().map { $0.lowercasedFirst + $0.dropFirst().lowercased() }.joined()
-    }
-
-    private func convertSnakeToCamelCase(_ value: Any) -> Any {
-        if let stringValue = value as? String {
-            return stringValue
-        } else if let dictValue = value as? [String: Any] {
-            var newDict: [String: Any] = [:]
-            for (key, val) in dictValue {
-                let newKey = snakeToCamelCase(key)
-                newDict[newKey] = convertSnakeToCamelCase(val)
-            }
-            return newDict
-        } else if let arrayValue = value as? [Any] {
-            return arrayValue.map { convertSnakeToCamelCase($0) }
-        }
-        return value
-    }
-}
-
-// Extend JSONEncoder/JSONDecoder
-extension JSONEncoder.KeyEncodingStrategy {
-    static var convertToSnakeCase: JSONEncoder.KeyEncodingStrategy {
-        return SnakeCaseEncodingStrategy()
-    }
-}
-
-extension JSONDecoder.KeyDecodingStrategy {
-    static var convertFromSnakeCase: JSONDecoder.KeyDecodingStrategy {
-        return SnakeCaseDecodingStrategy()
     }
 }

@@ -177,7 +177,6 @@ struct AuthView: View {
             .background(Color(.systemGroupedBackground))
         }
     }
-}
 
 // Preview
 #Preview {
