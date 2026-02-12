@@ -61,7 +61,7 @@ struct HomeFeedView: View {
                                         }
                                     }
                                 } else {
-                                    // Odd row: 1 + 2 layout
+                                    // Odd row: 1 full-width photo
                                     HStack(spacing: 0) {
                                         ForEach(0..<1, id: \.self) { _ in
                                             let cellPhoto = viewModel.photos[index]
